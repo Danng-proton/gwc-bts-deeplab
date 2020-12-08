@@ -23,6 +23,7 @@ import gc
 import cv2 as cv
 from os.path import join, split, isdir, isfile, splitext, split, abspath, dirname
 
+import pytorch_warmup as warmup
 import matplotlib.pyplot as plt
 from pylab import *
 import matplotlib
@@ -190,6 +191,17 @@ if args.sig_resume:
     print("loading sig checkpoint '{}' (epoch {})"
             .format(args.sig_resume, checkpoint['epoch']))
 print("start at epoch {}".format(start_epoch))
+
+splits = args.lr.split(':')
+assert len(splits) == 2
+# parse the epochs to downscale the learning rate (before :)
+downscale_epochs = [int(eid_str) for eid_str in splits[0].split(',')]
+# parse downscale rate (after :)
+downscale_rate = float(splits[1])
+print("downscale epochs: {}, downscale rate: {}".format(downscale_epochs, downscale_rate))
+torch.optim.lr_scheduler.MultiStepLR(optimizer, downscale_epochs, gamma=(1/downscale_rate), last_epoch=-1)
+warmup_scheduler = warmup.UntunedExponentialWarmup(optimizer)
+warmup_scheduler.last_step = -1 # initialize the step counter
 
 if args.start_epoch>=0:
     start_epoch = args.start_epoch

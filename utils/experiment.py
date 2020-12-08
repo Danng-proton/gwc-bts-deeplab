@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import torchvision.utils as vutils
 import torch.nn.functional as F
 import numpy as np
+import pytorch_warmup as warmup
 import copy
 
 
@@ -89,29 +90,30 @@ def save_images(logger, mode_tag, images_dict, global_step):
 
 
 def adjust_learning_rate(optimizer, epoch, base_lr, lrepochs):
-    splits = lrepochs.split(':')
-    assert len(splits) == 2
+    # splits = lrepochs.split(':')
+    # assert len(splits) == 2
 
-    # parse the epochs to downscale the learning rate (before :)
-    downscale_epochs = [int(eid_str) for eid_str in splits[0].split(',')]
-    # parse downscale rate (after :)
-    downscale_rate = float(splits[1])
-    print("downscale epochs: {}, downscale rate: {}".format(downscale_epochs, downscale_rate))
+    # # parse the epochs to downscale the learning rate (before :)
+    # downscale_epochs = [int(eid_str) for eid_str in splits[0].split(',')]
+    # # parse downscale rate (after :)
+    # downscale_rate = float(splits[1])
+    # print("downscale epochs: {}, downscale rate: {}".format(downscale_epochs, downscale_rate))
     
-    lr = base_lr
-     #在warmup 训练期间，学习率先行增大到初始学习率lr[0] = 0.04
-    if epoch <= cfg.train_cfg.warmup:
-        lr = cfg.train_cfg.end_lr + (cfg.train_cfg.lr[0]-cfg.train_cfg.end_lr)\
-         * iteration / (epoch_size * cfg.train_cfg.warmup)
-         
-    for eid in downscale_epochs:
-        if epoch >= eid:
-            lr /= downscale_rate
-        else:
-            break
-    print("setting learning rate to {}".format(lr))
+    lr_scheduler.step(epoch-1)
+    warmup_scheduler.dampen()
     for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+        print("setting learning rate to {}".format(param_group['lr'])
+        
+    # lr = base_lr
+       
+    # for eid in downscale_epochs:
+    #     if epoch >= eid:
+    #         lr /= downscale_rate
+    #     else:
+    #         break
+    # print("setting learning rate to {}".format(lr))
+    # for param_group in optimizer.param_groups:
+    #     param_group['lr'] = lr
 
 
 class AverageMeter(object):
