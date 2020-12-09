@@ -192,14 +192,14 @@ if args.sig_resume:
             .format(args.sig_resume, checkpoint['epoch']))
 print("start at epoch {}".format(start_epoch))
 
-splits = args.lr.split(':')
+splits = args.lrepochs.split(':')
 assert len(splits) == 2
 # parse the epochs to downscale the learning rate (before :)
 downscale_epochs = [int(eid_str) for eid_str in splits[0].split(',')]
 # parse downscale rate (after :)
 downscale_rate = float(splits[1])
 print("downscale epochs: {}, downscale rate: {}".format(downscale_epochs, downscale_rate))
-torch.optim.lr_scheduler.MultiStepLR(optimizer, downscale_epochs, gamma=(1/downscale_rate), last_epoch=-1)
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, downscale_epochs, gamma=(1/downscale_rate), last_epoch=-1)
 warmup_scheduler = warmup.UntunedExponentialWarmup(optimizer)
 warmup_scheduler.last_step = -1 # initialize the step counter
 
@@ -209,11 +209,11 @@ print("start_epoch",start_epoch)
 def train():
     for epoch_idx in range(start_epoch, args.epochs):
         if args.train_bio:
-            adjust_learning_rate(optimizer, epoch_idx, args.lr, args.lrepochs)
+            adjust_learning_rate(optimizer, epoch_idx, args.lr, args.lrepochs,lr_scheduler,warmup_scheduler)
         if args.train_mono:
-            adjust_learning_rate(mono_optimizer, epoch_idx, args.lr, args.lrepochs)
+            adjust_learning_rate(mono_optimizer, epoch_idx, args.lr, args.lrepochs,lr_scheduler,warmup_scheduler)
         if args.train_deeplab:
-            adjust_learning_rate(deeplab_optimizer, epoch_idx, args.lr, args.lrepochs)
+            adjust_learning_rate(deeplab_optimizer, epoch_idx, args.lr, args.lrepochs,lr_scheduler,warmup_scheduler)
         print("current rate is ",args.lr)
         print("maxdisp is ",args.maxdisp,", maxdepth is",args.mono_max_depth)
         #avg_train_scalars = AverageMeter()

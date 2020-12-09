@@ -98,12 +98,18 @@ parser.add_argument('--mask', type=float,   help='occ rate in result', default=0
 parser.add_argument('--sig_arg', type=float,   help='bbm rate', default=0)
 
 parser.add_argument('--variance_focus',type=float, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error', default=0.85)
+parser.add_argument('--gpu', default='5', type=str, help='GPU ID')
+#默认使用gpu
+
+
 # parse arguments, set seeds
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed(args.seed)
 os.makedirs(args.logdir, exist_ok=True)
 
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 # test_gt_path='/data/yyx/GwcNet-master/checkpoints/kitti/ft_from0/kitti_test_gt/'
 # test_pred1_path='/data/yyx/GwcNet-master/checkpoints/kitti/ft_from0/kitti_test_pred/'
 # os.makedirs(test_gt_path exist_ok=True)
@@ -112,7 +118,7 @@ os.makedirs(args.logdir, exist_ok=True)
 # create summary logger
 print("creating new summary file")
 # logger = SummaryWriter(args.logdir)
-logger = SummaryWriter(comment='train fuzzy')
+logger = SummaryWriter(comment=args.logdir.split("/")[-1])
 
 # dataset, dataloader
 StereoDataset = __datasets__[args.dataset]
@@ -197,14 +203,26 @@ if args.start_epoch > -1:
     
 print("start at epoch {}".format(start_epoch))
 
+splits = args.lrepochs.split(':')
+assert len(splits) == 2
+# parse the epochs to downscale the learning rate (before :)
+downscale_epochs = [int(eid_str) for eid_str in splits[0].split(',')]
+# parse downscale rate (after :)
+downscale_rate = float(splits[1])
+print("downscale epochs: {}, downscale rate: {}".format(downscale_epochs, downscale_rate))
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, downscale_epochs, gamma=(1/downscale_rate), last_epoch=-1)
+warmup_scheduler = warmup.UntunedExponentialWarmup(optimizer)
+warmup_scheduler.last_step = -1 # initialize the step counter
+
+
 def train():
     for epoch_idx in range(start_epoch, args.epochs):
         if args.train_bio:
-            adjust_learning_rate(optimizer, epoch_idx, args.lr, args.lrepochs)
+            adjust_learning_rate(optimizer, epoch_idx, args.lr, args.lrepochs,lr_scheduler,warmup_scheduler)
         if args.train_mono:
-            adjust_learning_rate(mono_optimizer, epoch_idx, args.lr, args.lrepochs)
+            adjust_learning_rate(mono_optimizer, epoch_idx, args.lr, args.lrepochs,lr_scheduler,warmup_scheduler)
         if args.train_deeplab:
-            adjust_learning_rate(deeplab_optimizer, epoch_idx, args.lr, args.lrepochs)
+            adjust_learning_rate(deeplab_optimizer, epoch_idx, args.lr, args.lrepochs,lr_scheduler,warmup_scheduler)
         print("current rate is ",args.lr)
         print("maxdisp is ",args.maxdisp,", maxdepth is",args.mono_max_depth)
         #avg_train_scalars = AverageMeter()
@@ -336,11 +354,11 @@ def train():
 
 def fuzzy_cross_entropy(out,gt):
     eps=1e-7
-    # part_out = out.mul(torch.log(out/gt+eps))
-    # part_gt=gt.mul(torch.log(gt/out+eps))
-    # return torch.mean(part_out+part_gt)
+    part_out = -out.mul(torch.log(gt+eps))
+    part_gt=-gt.mul(torch.log(out+eps))
+    return torch.mean(part_out+part_gt)
 
-    return -torch.mean(gt.mul(torch.log(out+eps)))
+    # return -torch.mean(gt.mul(torch.log(out+eps)))
 
 def lr_consistency_map(disp_left ,disp_right):
     lr_cons=[]

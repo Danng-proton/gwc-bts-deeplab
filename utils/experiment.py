@@ -89,7 +89,7 @@ def save_images(logger, mode_tag, images_dict, global_step):
                              global_step)
 
 
-def adjust_learning_rate(optimizer, epoch, base_lr, lrepochs):
+def adjust_learning_rate(optimizer, epoch, base_lr, lrepochs,lr_scheduler,warmup_scheduler):
     # splits = lrepochs.split(':')
     # assert len(splits) == 2
 
@@ -102,7 +102,7 @@ def adjust_learning_rate(optimizer, epoch, base_lr, lrepochs):
     lr_scheduler.step(epoch-1)
     warmup_scheduler.dampen()
     for param_group in optimizer.param_groups:
-        print("setting learning rate to {}".format(param_group['lr'])
+        print("setting learning rate to {}".format(param_group['lr']))
         
     # lr = base_lr
        
